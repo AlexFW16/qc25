@@ -1,4 +1,3 @@
-# import numpy as np
 import random
 import sympy as sp
 from sympy import pprint
@@ -35,8 +34,11 @@ def get_prob(state: sp.Matrix, value: int) -> sp.Expr:
     assert is_normalised(state), "State is not normalised"
     if value not in (0, 1):
         raise ValueError("Value must be 0 or 1")
+    entry = sp.sympify(state[0, 0]) if value == 0 else sp.sympify(state[0, 1])
 
-    return sp.Pow(state[0], 2) if value == 0 else sp.Pow(state[1], 2)
+    if not isinstance(entry, sp.Expr):
+        raise TypeError(f"Excpected expression and not {type(entry)}")
+    return sp.Pow(entry, 2)
 
 
 def compose_gates(gates: list[sp.Matrix]):
@@ -64,3 +66,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # TODO: Instructions 3
