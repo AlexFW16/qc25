@@ -9,11 +9,13 @@ ZERO = sp.Matrix([1, 0])  # Zero-State
 ONE = sp.Matrix([0, 1])  # One-State
 PLUS = sp.Matrix([1, 1]) / sqrt2  # Superposition Plus
 MINUS = sp.Matrix([1, -1]) / sqrt2  # Superposition Minus
+IPLUS = sp.Matrix([1, I]) / sqrt2  # Superposition Plus i 
+IMINUS = sp.Matrix([1, -I]) / sqrt2 # Superposition Minus i 
 
 
 # Basic Quantum Gates
 
-I = sp.eye(2)  # Identity
+ID = sp.eye(2)  # Identity
 Z = sp.Matrix([[1, 0], [0, -1]])  # signflip
 X = sp.Matrix([[0, 1], [1, 0]])  # NOT / bitflip
 H = sp.Matrix([[1, 1], [1, -1]]) / sqrt2  # Hadamard
@@ -48,7 +50,7 @@ def get_prob(state: sp.Matrix, value: int) -> sp.Expr:
 
     if not isinstance(entry, sp.Expr):
         raise TypeError(f"Excpected expression and not {type(entry)}")
-    return sp.Pow(entry, 2)
+    return sp.Pow(abs(entry), 2)
 
 
 def compose_gates(gates: list[sp.Matrix]):
