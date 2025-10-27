@@ -1,14 +1,14 @@
 import random
 import sympy as sp
-from sympy import pprint
+from sympy import pprint, I
 
 sqrt2 = sp.sqrt(2)
 
 # Basis States
 ZERO = sp.Matrix([1, 0])  # Zero-State
 ONE = sp.Matrix([0, 1])  # One-State
-SP = sp.Matrix([1, 1]) / sqrt2  # Superposition Plus
-SM = sp.Matrix([1, -1]) / sqrt2  # Superposition Minus
+PLUS = sp.Matrix([1, 1]) / sqrt2  # Superposition Plus
+MINUS = sp.Matrix([1, -1]) / sqrt2  # Superposition Minus
 
 
 # Basic Quantum Gates
@@ -19,8 +19,16 @@ X = sp.Matrix([[0, 1], [1, 0]])  # NOT / bitflip
 H = sp.Matrix([[1, 1], [1, -1]]) / sqrt2  # Hadamard
 
 
-def is_normalised(v: sp.Matrix):
+def is_normalised(v: sp.Matrix) -> bool:
     return v.norm() == 1
+
+
+def is_normalised_prob(v: sp.Matrix) -> float:
+    """
+    Returns a probablity of being normalised, to manually disregard small
+    imperfections when using concrete numbers.
+    """
+    return eval(1 - v.norm())
 
 
 def eval(expr: sp.Expr) -> float:
@@ -31,10 +39,12 @@ def eval(expr: sp.Expr) -> float:
 
 
 def get_prob(state: sp.Matrix, value: int) -> sp.Expr:
-    assert is_normalised(state), "State is not normalised"
+    if not is_normalised(state):
+        print(f"[Warn] {is_normalised_prob(state)}")
     if value not in (0, 1):
         raise ValueError("Value must be 0 or 1")
-    entry = sp.sympify(state[0, 0]) if value == 0 else sp.sympify(state[0, 1])
+    entry = sp.sympify(state[value, 0])
+    # entry = sp.sympify(state[0, 0]) if value == 0 else sp.sympify(state[0, 1])
 
     if not isinstance(entry, sp.Expr):
         raise TypeError(f"Excpected expression and not {type(entry)}")
@@ -59,12 +69,11 @@ def measure(state: sp.Matrix):
 
 
 def main():
-    G = compose_gates([H, H])
-    # pprint(measure(G * ZERO))
-    print(measure(H * ZERO))
+    # state = sp.Matrix([1, 0])
+    state = MINUS
+    print(state)
+    print(get_prob(state, 1))
 
 
 if __name__ == "__main__":
     main()
-
-    # TODO: Instructions 3
