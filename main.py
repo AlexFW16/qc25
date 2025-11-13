@@ -1,6 +1,7 @@
 import itertools
 import random
 import sympy as sp
+from sympy import N, Matrix as M
 from sympy import cos, exp, pprint, I, sin
 from sympy import pi as PI
 import numpy as np
@@ -11,46 +12,90 @@ from itertools import combinations
 
 sqrt2 = sp.sqrt(2)
 
-# Basis States
-ZERO = sp.Matrix([1, 0])  # Zero-State
-ONE = sp.Matrix([0, 1])  # One-State
-PLUS = sp.Matrix([1, 1]) / sqrt2  # Superposition Plus
-MINUS = sp.Matrix([1, -1]) / sqrt2  # Superposition Minus
-IPLUS = sp.Matrix([1, I]) / sqrt2  # Superposition Plus i 
-IMINUS = sp.Matrix([1, -I]) / sqrt2 # Superposition Minus i 
+# math functions
+def kronecker(A: M, B: M) -> M:
+    a_shape, b_shape = A.shape, B.shape
+    C : M = sp.zeros(a_shape[0] * b_shape[0], a_shape[1] * b_shape[1])
+
+    for i in range (A.rows):
+        for j in range(A.cols):
+            # Puts the Block Matrix a_i,j * B into C, uses the starting index (0,0)-element of block matrix
+            C[i * a_shape[0], j * a_shape[1]] = A[i, j] * B
+    return C
+
+def is_orthonormal(vectors: list[M]) -> bool:
+    shape = vectors[0].shape
+
+    if shape[0] == 1:
+        for i, vec in enumerate(vectors):
+            if (vec  * vec.H)[0, 0] != [1]:
+                return False
+            for j in range(i+1, len(vectors)):
+                if (vec * vectors[j].H)[0, 0] != 0:
+                    return False
+    elif shape[1] == 1:
+        for i, vec in enumerate(vectors):
+            if (vec.H * vec)[0, 0] != 1:
+                return False
+            for j in range(i+1, len(vectors)):
+                if (vec.H* vectors[j])[0, 0] != 0:
+                    return False
+    else:
+        print(f"{vectors[0]} is not in vector shape: {shape}!")
+        return False
+    return True
+
+# Basis 1-qbuit states
+ZERO:M  = M([1, 0])  # Zero-State
+ONE: M = M([0, 1])  # One-State
+PLUS: M = M([1, 1]) / sqrt2  # Superposition Plus
+MINUS: M = M([1, -1]) / sqrt2  # Superposition Minus
+IPLUS: M = M([1, I]) / sqrt2  # Superposition Plus i 
+IMINUS: M = M([1, -I]) / sqrt2 # Superposition Minus i 
+
+# Basis 2-qbuit states
+BELL00: M = M(1/sqrt2 * (kronecker(ZERO, ZERO) + kronecker(ONE, ONE))) # 00 Bell State
+BELL01: M = M(1/sqrt2 * (kronecker(ZERO, ONE) + kronecker(ONE, ZERO))) # 01 Bell State
+BELL10: M= M(1/sqrt2 * (kronecker(ZERO, ZERO) - kronecker(ONE, ONE))) # 10 Bell State
+BELL11: M = M(1/sqrt2 * (kronecker(ZERO, ONE) - kronecker(ONE, ZERO))) # 11 Bell State
 
 
-# Basic Quantum Gates
-
+# Basic 1-qubit Gates
 ID = sp.eye(2)  # Identity
-Z = sp.Matrix([[1, 0], [0, -1]])  # signflip
-X = sp.Matrix([[0, 1], [1, 0]])  # NOT / bitflip
-H = sp.Matrix([[1, 1], [1, -1]]) / sqrt2  # Hadamard
-S  = sp.Matrix([[1, 0], [0, I]]) # sqrt of Z
-T  = sp.Matrix([[1, 0], [0, exp( I * PI / 4)]]) # sqrt of S
-Y = sp.Matrix([[0, - I], [I, 0]])
+Z = M([[1, 0], [0, -1]])  # signflip
+X = M([[0, 1], [1, 0]])  # NOT / bitflip
+H = M([[1, 1], [1, -1]]) / sqrt2  # Hadamard
+S  = M([[1, 0], [0, I]]) # sqrt of Z
+T  = M([[1, 0], [0, exp( I * PI / 4)]]) # sqrt of S
+Y = M([[0, - I], [I, 0]])
 
-CNOT = sp.Matrix([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
-CNOT2 = sp.Matrix([[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]])
+# Basic 2-qubit Gates 
+CNOT = M([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]]) # first bit control
+CNOT2 = M([[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]])
+BELLM = kronecker(H, ID) * CNOT
 
 
 # X-Axis Pauli Rotation
-def R_X(theta: sp.Expr | sp.Rational | float) -> sp.Matrix:
-    return sp.Matrix([[cos(theta/2), - I * sin(theta/2)], [- I * sin(theta/2), cos(theta/2)]])
+def R_X(theta: sp.Expr | sp.Rational | float) -> M:
+    return M([[cos(theta/2), - I * sin(theta/2)], [- I * sin(theta/2), cos(theta/2)]])
 
 # Y-Axis Pauli Rotation
-def R_Y(theta: sp.Expr | sp.Rational | float) -> sp.Matrix:
-    return sp.Matrix([[cos(theta/2), -sin(theta/2)], [sin(theta/2), cos(theta/2)]])
+def R_Y(theta: sp.Expr | sp.Rational | float) -> M:
+    return M([[cos(theta/2), -sin(theta/2)], [sin(theta/2), cos(theta/2)]])
 
 # Z-Axis Pauli Rotation
-def R_Z(theta: sp.Expr | sp.Rational | float) -> sp.Matrix:
-    return sp.Matrix([[exp(-I * theta / 2), 0], [0, exp(I * theta/2)]])
+def R_Z(theta: sp.Expr | sp.Rational | float) -> M:
+    return M([[exp(-I * theta / 2), 0], [0, exp(I * theta/2)]])
 
-def commute(A: sp.Matrix, B: sp.Matrix) -> bool:
+#NOTE: just use Hermite conjugate directly
+# def bra_to_ket(A: M) -> M:
+#     return A.H
+    
+def commute(A: M, B: M) -> bool:
     """
     Returns true if matrices commute.
     """
-    if isinstance(A, sp.Matrix) and isinstance(B, sp.Matrix):
+    if isinstance(A, M) and isinstance(B, M):
         return A*B == B*A
         # commutator =  A*B - B*A
         # return commutator == sp.zeros(*commutator.shape())
@@ -63,19 +108,8 @@ def commute(A: sp.Matrix, B: sp.Matrix) -> bool:
         raise TypeError("A and B must either be sympy matrices or numpy arrays, no mixing!")
 
 
-def kronecker(A: sp.Matrix, B: sp.Matrix) -> sp.Matrix:
-    a_shape, b_shape = A.shape, B.shape
-    C : sp.Matrix = sp.zeros(a_shape[0] * b_shape[0], a_shape[1] * b_shape[1])
 
-    for i in range (A.rows):
-        for j in range(A.cols):
-            # Puts the Block Matrix a_i,j * B into C, uses the starting index (0,0)-element of block matrix
-            C[i * a_shape[0], j * a_shape[1]] = A[i, j] * B
-    return C
-            
-
-
-def is_normalised(v: sp.Matrix, numerically: bool = False ) -> bool:
+def is_normalised(v: M, numerically: bool = False ) -> bool:
     norm = v.norm()
     if numerically:
         norm = float(norm.evalf())
@@ -83,7 +117,7 @@ def is_normalised(v: sp.Matrix, numerically: bool = False ) -> bool:
     else:
         return sp.simplify(norm) == 1
 
-def is_normalised_prob(v: sp.Matrix) -> float:
+def is_normalised_prob(v: M) -> float:
     """
     Returns a probablity of being normalised, to manually disregard small
     imperfections when using concrete numbers.
@@ -97,7 +131,7 @@ def eval(expr: sp.Expr) -> float:
     """
     return float(sp.Float(expr.evalf()))
 
-def get_probs(state: sp.Matrix, numerically: bool = False, as_cdf: bool = False) -> list[sp.Expr]:
+def get_probs(state: M, numerically: bool = False, as_cdf: bool = False) -> list[sp.Expr]:
     assert is_normalised(state, numerically), f"[Warn] {is_normalised_prob(state)}"
     
     out: list[sp.Expr] = []
@@ -109,7 +143,7 @@ def get_probs(state: sp.Matrix, numerically: bool = False, as_cdf: bool = False)
         out.append(prev + sp.Pow(abs(entry) , 2))
     return out
 
-def get_prob_single(state: sp.Matrix, value: int, numerically: bool = False) -> sp.Expr:
+def get_prob_single(state: M, value: int, numerically: bool = False) -> sp.Expr:
     if not is_normalised(state, numerically):
         print(f"[Warn] {is_normalised_prob(state)}")
     if value not in (0, 1):
@@ -122,7 +156,7 @@ def get_prob_single(state: sp.Matrix, value: int, numerically: bool = False) -> 
     return sp.Pow(abs(entry), 2)
 
 
-def compose_gates(gates: list[sp.Matrix]):
+def compose_gates(gates: list[M]):
     """
     The gates are applied as if you write out the list from left [0] to right [-1]
     """
@@ -131,24 +165,54 @@ def compose_gates(gates: list[sp.Matrix]):
         result = gates[i] * result
     return result
 
-def measure(state: sp.Matrix, numerically: bool = False):
+def measure(state: M, numerically: bool = True) -> int:
     size = state.shape[0]
     assert size % 2 == 0, "Invalid state given: Length not a power of 2"
+
     cdf = get_probs(state, numerically, as_cdf=True)
+    if numerically:
+        cdf = [float(N(x)) for x in cdf]
+        assert abs(cdf[-1] -1) < 1e-12, f"Sum over CDF is not 1: {cdf[-1]}"
+    else:
+        assert cdf[-1] == 1, f"Sum over CDF is not 1: {cdf[-1]}"
 
     r = random.random()
     for i in range(size):
         if r <= cdf[i]:
             return i
+    return -1
 
 def main():
-    A = sp.Matrix([[1, 0], [0, 1]])
-    B = sp.Matrix([[1, 1], [1, 1]])
+    s1 = kronecker(X * Z, ID) * BELL00
+    s2 = kronecker(Z * X, ID) * BELL00
+    print(get_probs(s1))
+    print(get_probs(s2))
+    
+    print(is_orthonormal([BELL00, BELL01, BELL10, BELL11]))
 
-    G0 = kronecker(ID, ID)
-    G1 = kronecker(X, ID) #bitflip first
-    G2 = kronecker(ID, X) # bitflip second
-    G3 = kronecker(X, X)
+
+    exit(0)
+    state = kronecker(MINUS, ZERO)
+    print(get_probs(BELLM * state))
+    data = []
+    for i in range(10000):
+        data.append(measure(BELLM * state))
+    plot(data)
+
+    vectors = [M([1, 0, 0, 0]).transpose(), M([0, 1, 0, 0]).transpose(), M([0, 0 , 0, 1]).transpose(),  M([0, 0, 1, 0]).transpose()]
+    print(vectors)
+    # print(is_orthonormal([BELL00, BELL01, BELL10, BELL11]))
+    print("---")
+    pprint(IPLUS.H * PLUS)
+    exit(0)
+
+    A = M([[1, 0], [0, 1]])
+    B = M([[1, 1], [1, 1]])
+
+    G0: M = kronecker(ID, ID)
+    G1: M = kronecker(X, ID) #bitflip first
+    G2: M = kronecker(ID, X) # bitflip second
+    G3: M = kronecker(X, X)
 
     # pprint(CNOT)
     # state = kronecker(ONE, ONE)
@@ -175,23 +239,15 @@ def main():
     # Try all sequences of up to length 5
     for i in range(1, 6):
         for seq in itertools.product(ops, repeat=i):
-            M : sp.Matrix = sp.eye(4)
+            Mat : M = sp.eye(4)
             for op in seq:
-                M = M * op
+                Mat = Mat * op
             results.add(M.as_immutable())
 
     print(len(results))
 
     exit(0)
-    data = []
-    pprint(kronecker(H *T, H) * kronecker(ZERO, ONE))
-    for i in range(100):
-        # data.append(measure(kronecker(H *T, H) * kronecker(ZERO, ONE)))
-        # data.append(measure((kronecker(S, ID)* CNOT2* kronecker(H, H) * CNOT * kronecker(H, H) * CNOT * kronecker(ONE, ZERO))))
-
-        # data.append(measure(R_Z(PI / 2) * ONE))
-        data.append(measure(S * ONE))
-
+def plot(data):
     counts = Counter(data)
 
     # Extract numbers and their frequencies
@@ -199,7 +255,7 @@ def main():
     frequencies = list(counts.values())
 
     # Create bar plot
-    plt.bar(numbers, frequencies, width=0.0001)
+    plt.bar(numbers, frequencies )
 
     # Add labels and title
     plt.xlabel('Number')
