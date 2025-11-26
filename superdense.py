@@ -6,7 +6,7 @@ from sympy import N
 
 sqrt2 = sp.sqrt(2)
 
-from main import BELL00, BELLM, CNOT, H, ID, X, Z, ZERO, get_probs, kronecker, measure
+from main import BELL00, BELLM, CNOT, H, ID, X, Z, ZERO, get_probs, kronecker2, measure
 class Superdense:
 
     # Generates a 00 bell state
@@ -16,7 +16,7 @@ class Superdense:
     # Alice encodes what she wants to send
     def encode(self, b0: int, b1: int, bell_state: M) -> M:
         assert b0 in [0, 1] and b1 in [0, 1]
-        return (kronecker(Z ** b0 * X ** b1, ID)) * bell_state
+        return (kronecker2(Z ** b0 * X ** b1, ID)) * bell_state
 
     # Bob receives 2 qbuits and restores the information
     def receive(self, qubits: M) -> int:
