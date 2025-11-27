@@ -62,4 +62,5 @@ def commute(A: M, B: M) -> bool:
     else:
         raise TypeError("A and B must either be sympy matrices or numpy arrays, no mixing!")
 
-
+def bin_fixed(n, length):
+    return format(n, f'0{length}b')
