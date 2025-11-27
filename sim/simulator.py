@@ -1,5 +1,5 @@
 import sympy as sp
-from sympy import N, Matrix as M
+from sympy import N, Matrix as M, sstr
 from sympy import cos, exp, pprint, I, sin, sqrt 
 from sympy import pi as PI
 import numpy as np
@@ -91,7 +91,6 @@ class Simulator:
         l2: list[M] = [self.ID] * n
         l1[q1] = self.P0
         l2[q1] = self.P1
-
         l2[q2] = self.X
         return kronecker(l1) + kronecker(l2)
 
@@ -156,8 +155,11 @@ class Simulator:
             entry = state[i, 0]
             assert isinstance(entry, sp.Expr), f"Excpected expression and not {type(entry)}"
 
-            prev = out[i-1] if i > 0 else 0
-            out.append(prev + sp.Pow(abs(entry) , 2))
+            if as_cdf:
+                prev = out[i-1] if i > 0 else 0
+                out.append(prev + sp.Pow(abs(entry) , 2))
+            else:
+                out.append(sp.Pow(abs(entry), 2))
         return out
 
     def get_prob_single(self, state: M, value: int) -> sp.Expr:
@@ -235,6 +237,7 @@ class Simulator:
                 return i
         return -1
 
+    #TODO: fix, does not work yet (in quiz 6.3, always prob 1??)
     def partial_measure_prob(self, state: M, index: int, outcome: int) -> sp.Expr:
 
         """
@@ -248,7 +251,7 @@ class Simulator:
 
         vec_len =  shape[0] if shape[1] == 1 else shape[1]
         assert index < vec_len, f"index {index} for partial measure oob"
-        assert self.is_normalised(state), f"Given state {state} is not normalised"
+        assert self.is_normalised(state), f"Given state is not normalised\n{sstr(state)}"
 
         #NOTE: adjust ordering of LSB/MSB to be coherent with kronecker product
         n = int(log2(vec_len))
@@ -276,12 +279,20 @@ class Simulator:
         """
         Collapses a state into a given outcome, disregarding probabilities
         """
+        shape = state.shape
+        assert outcome in {0, 1}, f"Asking for collapsing with outcome {outcome} not in {{0, 1}}"
+        assert shape[0] == 1 or shape[1] == 1, f"Given state {state} is not a vector"
+
+        vec_len =  shape[0] if shape[1] == 1 else shape[1]
+        n = int(log2(vec_len))
+        lsb_index = n -1 - index
+
         if state.shape[0] == 1:
             vec_len = state.shape[1]
-            new_state = M([[state[0, i] for i in range(vec_len) if ((i >> index) & 1) == outcome]])
+            new_state = M([[state[0, i] for i in range(vec_len) if ((i >> lsb_index) & 1) == outcome]])
         elif state.shape[1] == 1:
             vec_len = state.shape[0]
-            new_state = M([[state[i, 0]] for i in range(vec_len) if ((i >> index) & 1) == outcome])
+            new_state = M([[state[i, 0]] for i in range(vec_len) if ((i >> lsb_index) & 1) == outcome])
         else:
             raise ValueError(f"Given state {state} is not a vector")
 
