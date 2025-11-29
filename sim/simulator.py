@@ -121,7 +121,7 @@ class Simulator:
         assert isinstance(out, M), "TOFFOLI gate construction returned zero, no layers?"
         return out
 
-    def CONTROLLED_X(self, controls: list[int], out_bit: int, size: int):
+    def CONTROLLED_X(self, controls: list[int], out_bit: int, size: int) -> M:
         """
         Returns a controlled bitflip gated (generalisation of CNOT/TOFFOLI).
         Needs a list of control bits, an output bit that is flipped and
@@ -146,6 +146,13 @@ class Simulator:
         out = sum([self.distribute_gates(layer, size) for layer in layers], M.zeros(2**size, 2**size))
         assert isinstance(out, M), "CONTROLLED_X gate construction returned zero, no layers?"
         return out
+
+    def XOR(self, input_bits: list[int], out_bit: int, size: int) -> M:
+        out = kronecker([self.ID] * size)
+        for i in range(size-1):
+            out *= self.CNOT(i, i+1, size)
+        return out
+
 
 
     def all_bitstrings(self, n:int):
