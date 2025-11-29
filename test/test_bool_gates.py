@@ -20,7 +20,7 @@ class TestLogicCircuits(unittest.TestCase):
                     self.ZERO  # output qubit initialized to 0
                 ])
                 circ = AND_circ(n)
-                output, _ = self.sim.partial_measure_and_collapse(circ * input_state, 2)
+                output, _ = self.sim.partial_measure_and_collapse_single(circ * input_state, 2)
                 expected = a & b
                 self.assertEqual(output, expected, f"AND({a},{b}) failed")
 
@@ -35,7 +35,7 @@ class TestLogicCircuits(unittest.TestCase):
                     self.ZERO  # output qubit initialized to 0
                 ])
                 circ = OR_circ(n)
-                output, _ = self.sim.partial_measure_and_collapse(circ * input_state, 2)
+                output, _ = self.sim.partial_measure_and_collapse_single(circ * input_state, 2)
                 expected = a | b
                 self.assertEqual(output, expected, f"OR({a},{b}) failed")
 

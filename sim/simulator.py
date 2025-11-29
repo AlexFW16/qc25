@@ -1,3 +1,4 @@
+import itertools
 import sympy as sp
 from sympy import N, Matrix as M, sstr
 from sympy import cos, exp, pprint, I, sin, sqrt 
@@ -120,6 +121,39 @@ class Simulator:
         assert isinstance(out, M), "TOFFOLI gate construction returned zero, no layers?"
         return out
 
+    def CONTROLLED_X(self, controls: list[int], out_bit: int, size: int):
+        """
+        Returns a controlled bitflip gated (generalisation of CNOT/TOFFOLI).
+        Needs a list of control bits, an output bit that is flipped and
+        the size of the circuit it is embedded into.
+
+        """
+        assert len(controls) > 2, "If using less than 2 control bits, use TOFFOLI/CNOT"
+        assert len(controls) + 1 <= size, f"Cannot have {len(controls)} control bits in circuit with {size} qubits"
+
+        layers = [[] for _ in range(2**len(controls))]
+        combinations = list(itertools.product([0, 1], repeat=len(controls)))
+
+        assert len(combinations) == len(layers), f"There must be the same amount of layers [{len(layers)}] as combinations of 0-1 [{len(combinations)}]"
+        for layer, comb in zip(layers, combinations):
+            for c_bit, proj in zip(controls, comb):
+                if proj == 0:
+                    layer.append((c_bit, self.P0))
+                else:
+                    layer.append((c_bit, self.P1))
+
+            layer.append((out_bit, self.X))
+        out = sum([self.distribute_gates(layer, size) for layer in layers], M.zeros(2**size, 2**size))
+        assert isinstance(out, M), "CONTROLLED_X gate construction returned zero, no layers?"
+        return out
+
+
+    def all_bitstrings(self, n:int):
+        """
+        Returns a list of labels for all binary numbers up to n.
+        """
+        return [format(i, f'0{n}b') for i in range(2 ** n)]
+
 
     #NOTE: just use Hermite conjugate directly
     # def bra_to_ket(A: M) -> M:
@@ -217,9 +251,6 @@ class Simulator:
 
 
 
-
-
-
     def measure(self, state: M) -> int:
         size = state.shape[0]
         assert size % 2 == 0, "Invalid state given: Length not a power of 2"
@@ -237,7 +268,6 @@ class Simulator:
                 return i
         return -1
 
-    #TODO: fix, does not work yet (in quiz 6.3, always prob 1??)
     def partial_measure_prob(self, state: M, index: int, outcome: int) -> sp.Expr:
 
         """
@@ -245,16 +275,18 @@ class Simulator:
         on a single qubit at the specified ``index`` of a quantum state.
         """
 
+
         shape = state.shape
         assert outcome in {0, 1}, f"Asking for partial measurement outcome of {outcome} not in {{0, 1}}"
         assert shape[0] == 1 or shape[1] == 1, f"Given state {state} is not a vector"
 
         vec_len =  shape[0] if shape[1] == 1 else shape[1]
-        assert index < vec_len, f"index {index} for partial measure oob"
+        n = int(log2(vec_len))
+
+        assert index < n, f"index {index} for partial measure oob"
         assert self.is_normalised(state), f"Given state is not normalised\n{sstr(state)}"
 
         #NOTE: adjust ordering of LSB/MSB to be coherent with kronecker product
-        n = int(log2(vec_len))
         lsb_index = n - 1- index
         # shift by index s.t the interesting bit is now the LSB, then bitwise and with 1 to extract it
         indices = [i for i in range(vec_len) if ((i >> lsb_index) & 1) == outcome]
@@ -265,19 +297,43 @@ class Simulator:
         else:
             return cast(sp.Expr, sum(abs(cast(sp.Expr, state[i, 0]))**2 for i in indices))
 
-    def partial_measure_and_collapse(self, state: M, index: int) -> tuple[int, M]:
+    def partial_measure_and_collapse(self, state: M, indices: list[int]) -> tuple[list[int], M]:
+        outcomes = []
+        assert len(indices) > 0, "No indices given for which to partial measure and collapse"
+
+        new_state = state
+        for i in sorted(indices, reverse=True):
+            outcome, new_state = self.partial_measure_and_collapse_single(new_state, i)
+            outcomes.append(outcome)
+        return outcomes, new_state
+        
+
+    def partial_measure_and_collapse_single(self, state: M, index: int) -> tuple[int, M]:
         """
         Perform a partial measurement on a single qubit at the given index,
         collapse the state vector accordingly, and return the new normalized state.
         """
         prob_0 = self.partial_measure_prob(state, index, 0)
         outcome = 0 if random.random() < prob_0.evalf() else 1
-        new_state = self.collapse_to(state, index, outcome)
+        new_state = self.collapse_to_single(state, index, outcome)
         return (outcome, new_state)
 
-    def collapse_to(self, state: M, index: int, outcome: int) -> M:
+    def collapse_to(self, state: M, indices_and_outcomes: list[tuple[int, int]]):
+
+        assert len(indices_and_outcomes) > 0, "No indices/outcomes given for which to collapse"
+
+        new_state = state
+        indices_and_outcomes_sorted = sorted(indices_and_outcomes, reverse=True, key=lambda x: x[0])
+
+        for i, o in indices_and_outcomes_sorted:
+            new_state = self.collapse_to_single(new_state, i, o)
+        assert new_state is not None, "State collapsed cannot be None"
+        return new_state
+
+
+    def collapse_to_single(self, state: M, index: int, outcome: int) -> M:
         """
-        Collapses a state into a given outcome, disregarding probabilities
+        Collapses a state into a given outcome, disregarding probabilities.
         """
         shape = state.shape
         assert outcome in {0, 1}, f"Asking for collapsing with outcome {outcome} not in {{0, 1}}"
@@ -286,6 +342,8 @@ class Simulator:
         vec_len =  shape[0] if shape[1] == 1 else shape[1]
         n = int(log2(vec_len))
         lsb_index = n -1 - index
+
+        assert index < n, f"Cannot collapse for state at index {index} >= {n}-quibts"
 
         if state.shape[0] == 1:
             vec_len = state.shape[1]
@@ -308,18 +366,17 @@ class Simulator:
 
     def t_gate_teleport(self, state: M) -> M:
         state2 = self.CNOT * self.CNOT2 * kronecker2(self.T_STATE0, state)
-        outcome, collapsed_state =  self.partial_measure_and_collapse(state2, 0)
+        outcome, collapsed_state =  self.partial_measure_and_collapse_single(state2, 0)
         return self.S * self.X * collapsed_state if outcome == 1 else collapsed_state
 
     def teleport(self, state: M) -> M:
         circuit = kronecker([self.H, self.ID, self.ID]) * kronecker([self.CNOT(), self.ID]) * kronecker([self.ID, self.CNOT()]) * kronecker([self.ID, self.H, self.ID])
 
 
-        #NOTE: not 100% sure why, but we need to measure the largest index?
         state = circuit * kronecker([state, self.ZERO, self.ZERO])
 
-        use_z, state = self.partial_measure_and_collapse(state, 2)
-        use_x, state = self.partial_measure_and_collapse(state, 1)
+        use_z, state = self.partial_measure_and_collapse_single(state, 0)
+        use_x, state = self.partial_measure_and_collapse_single(state, 0)
 
 
         corr = self.Z if use_z else self.ID
